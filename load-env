@@ -1,0 +1,31 @@
+#! /bin/sh
+set -euf
+main() {
+  case "$PWD" in
+    "$HOME/src/"[0-9A-Za-z-]*)
+      name=$(basename "$PWD")
+      exe=$(findexe "$name" | highest_version)
+      if test -z "$exe"; then
+        echo2 "load-env-$name: no such executable"
+      else
+        echo2 "run $exe"
+        exec "$exe" "$@"
+      fi
+      ;;
+    "$HOME/src/"*) echo2 "bad basename: $(basename "$PWD")";;
+    *) echo2 "load-env only knows about stuff below ~/src";;
+  esac
+  exit 23
+}
+echo2() { echo "$*" >&2; }
+findexe() {
+  ( IFS=:
+    find $PATH \
+        -regextype posix-extended \
+        -regex ".*/load-env-$1(-[0-9.]+)?$" \
+        2>/dev/null )
+}
+highest_version() {
+  sort -V | tail -n 1
+}
+main "$@"
