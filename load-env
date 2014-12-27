@@ -1,23 +1,100 @@
 #! /bin/sh
 set -euf
+
+
+#
+# usage: load-env [COMMAND [ARGS...]]
+#
+
 main() {
-  case "$PWD" in
+  name=$(exeFrom "$PWD")
+  if test -z "$name"; then
+    die 'could not load environment'
+  else
+    init_env "${name%-*}" "${name##*-}"
+    exec "load-env-$name" "$@"
+  fi
+}
+
+
+# init_env PNAME VERSION
+init_env() {
+  # Until https://ghc.haskell.org/trac/ghc/ticket/9089 is solved,
+  # For a local .ghc/ghci_history:
+  verbose export HOME="$HOME/.env-home/$1"
+  mkdir -p -m 0700 "$HOME"
+
+  verbose export HISTFILE="$HOME/histfile"
+  verbose export HISTSIZE=100000
+
+  if test -f "$HOME/profile"; then
+    verbose . "$HOME/profile"
+  fi
+}
+
+
+#
+# exeFrom* functions
+#
+# Determine name (pname-version) of a directory.
+#
+
+# exeFrom DIR
+# Prints PNAME-VERSION to stderr.
+exeFrom () {
+  if test -e "$1/env.nix"; then
+    exeFromEnvNix "$1/env.nix"
+  else
+    echo2 "Warning: this is a legacy directory"
+    exeFromDirName "$1"
+  fi
+}
+
+# exeFromEnvNix expects that $1 (env.nix) contains:
+# let
+#   pname = "example";
+#   version = "1";
+exeFromEnvNix() {
+  envNix=$(tr -d '\n ' < "$1")
+
+  if ! echo "$envNix" | grep -q 'letpname'; then
+    echo2 "$0: warning: nix.env is using name instead of pname"
+  fi
+
+  echo "$envNix" |
+  sed -n '
+    s/.*letp\?name="\([0-9A-Za-z-]\+\)";version="\([0-9]\+\)";.*/\1-\2/p
+  '
+}
+
+exeFromDirName() {
+  case "$1" in
     "$HOME/src/"[0-9A-Za-z-]*)
-      name=$(basename "$PWD")
-      exe=$(findexe "$name" | highest_version)
-      if test -z "$exe"; then
-        echo2 "load-env-$name: no such executable"
-      else
-        echo2 "run $exe"
-        exec "$exe" "$@"
-      fi
+      name=$(basename "$1")
+      findexe "$name" | highest_version
       ;;
-    "$HOME/src/"*) echo2 "bad basename: $(basename "$PWD")";;
+    "$HOME/src/"*) echo2 "bad basename: $(basename "$1")";;
     *) echo2 "load-env only knows about stuff below ~/src";;
   esac
+}
+
+
+#
+# Utility Functions
+#
+
+die() {
+  echo2 "$0: $*"
   exit 23
 }
+
 echo2() { echo "$*" >&2; }
+
+verbose() {
+  echo2 "$@"
+  "$@"
+}
+
 findexe() {
   ( IFS=:
     find $PATH \
@@ -25,7 +102,9 @@ findexe() {
         -regex ".*/load-env-$1(-[0-9.]+)?$" \
         2>/dev/null )
 }
+
 highest_version() {
   sort -V | tail -n 1
 }
+
 main "$@"
