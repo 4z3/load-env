@@ -21,6 +21,7 @@ main() {
 init_env() {
   # Until https://ghc.haskell.org/trac/ghc/ticket/9089 is solved,
   # For a local .ghc/ghci_history:
+  export OLDHOME="$HOME"
   verbose export HOME="$HOME/.env-home/$1"
   mkdir -p -m 0700 "$HOME"
 
