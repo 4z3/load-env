@@ -71,7 +71,7 @@ exeFromDirName() {
   case "$1" in
     "$HOME/src/"[0-9A-Za-z-]*)
       name=$(basename "$1")
-      findexe "$name" | highest_version
+      basename $(findexe "$name" | highest_version) | sed s:^load-env-::
       ;;
     "$HOME/src/"*) echo2 "bad basename: $(basename "$1")";;
     *) echo2 "load-env only knows about stuff below ~/src";;
